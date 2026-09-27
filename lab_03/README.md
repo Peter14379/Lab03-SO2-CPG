@@ -246,3 +246,9 @@ Simulator ที่เรารันระบุว่าเป็น kinematic
 
 5. kinematic simulation ยังไม่วัดหลักฐานใด?  
 คำตอบ: kinematic simulation ของเราสามารถตรวจ timing, phase, foot placement, speed, frequency, support legs และ foot clearance ได้ แต่ยังไม่สามารถตรวจ dynamic stability, ground contact force, motor torque, energy consumption และ actuator tracking ได้ ดังนั้นผลที่เดินได้ใน simulation ยังไม่สามารถยืนยันได้ว่าหุ่นยนต์จริงจะเดินได้อย่างเสถียร
+
+## ผลการทดลองเพิ่มเติมจาก PowerPoint
+
+- [Lab A — Basic SO(2) Oscillator](labA/README.md)
+- [Lab B — Modulatory Input](labB/README.md)
+- [Lab C — Alternating Tripod Gait](labC/README.md)
