@@ -1,0 +1,4 @@
+lab_02/.venv/
+lab_02/**/__pycache__/
+lab_02/**/*.pyc
+teacher_repo/
