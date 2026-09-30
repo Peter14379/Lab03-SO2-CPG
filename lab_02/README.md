@@ -34,14 +34,21 @@ python -m unittest discover -s tests -v
 
 ## 4. งานก่อนทดลอง
 
-ให้นักศึกษาเขียน prediction ลงในใบงานก่อนรันโปรแกรม:
-
 1. เมื่อ noise เพิ่มขึ้น C1 จะมี switching count เปลี่ยนอย่างไร
+
+คาดว่า switching count ของ C1 จะเพิ่มขึ้น เนื่องจาก C1 ใช้ Single Threshold ที่ค่า 0.35 m เพียงค่าเดียว เมื่อค่าจาก sensor มี noise และแกว่งอยู่ใกล้ threshold ค่าระยะอาจสลับข้าม threshold ไปมา ทำให้สถานะ FAR และ NEAR เปลี่ยนสลับกันหลายครั้ง
+
+
 2. C2 จะลด false trigger โดยแลกกับ latency หรือ recovery time อย่างไร
+
+คาดว่า C2 จะสามารถลด false trigger และการสลับสถานะที่ไม่จำเป็นได้ เนื่องจากใช้ Low-pass Filter ร่วมกับ Hysteresis โดยกำหนด T_enter = 0.32 m และ T_exit = 0.38 m ทำให้ค่าจาก sensor ต้องผ่าน threshold ที่แตกต่างกันก่อนเปลี่ยนสถานะ
+
+อย่างไรก็ตาม การกรองข้อมูลและ hysteresis จะทำให้ controller ใช้เวลามากขึ้นก่อนเปลี่ยนสถานะ จึงคาดว่า latency หรือ recovery time จะสูงกว่า C1
+
+
 3. เมื่อเพิ่ม sensor delay เส้น command จะเลื่อนจาก physical event เท่าใด
 
-ห้ามแก้ prediction หลังเห็นผลโดยไม่บันทึกเหตุผลและเวลาแก้
-
+คาดว่าเมื่อเพิ่ม sensor delay การตอบสนองของ controller จะเกิดช้ากว่า physical event ใกล้เคียงกับค่าของ delay ที่เพิ่มเข้าไป เช่น หากเพิ่ม delay 300 ms การตอบสนองควรช้าลงประมาณ 0.3 s
 ## 5. ทำความเข้าใจ input scenario
 
 ทุก trial ยาว 20 วินาทีและใช้ trajectory เดียวกัน:
@@ -159,13 +166,74 @@ python plot_trial.py results\comparison\trials\C2_n0.01_d000_r01.csv `
 
 ## 11. คำถามวิเคราะห์ผล
 
-1. C1 กับ C2 ต่างกันใน `extra_switches` และ latency เท่าใด
-2. เมื่อ noise เพิ่มจาก 0.01 เป็น 0.03 m ค่าใดเปลี่ยนชัดที่สุด
-3. delay 300 ms เพิ่ม response latency ใกล้ 300 ms หรือไม่ เพราะเหตุใด
-4. C3 ชน command limit ช่วงใด และ smoothness สัมพันธ์กับ tracking error อย่างไร
-5. มี invalid samples หรือไม่ และกลุ่มจัดการ trial เหล่านั้นอย่างไร
+ 1. C1 และ C2 แตกต่างกันอย่างไรในเรื่อง latency, false trigger และ extra switching?
 
-ข้อสรุปต้องระบุ condition, metric และตัวเลขเปรียบเทียบ หลีกเลี่ยงข้อความว่า controller หนึ่ง “ดีกว่า” โดยไม่ระบุเกณฑ์
+จากผลการทดลองพบว่า C1 ตอบสนองได้เร็วกว่า C2 อย่างชัดเจน แต่มีความไวต่อ noise สูงกว่า
+
+C1 มี Enter latency ≈ 0.0189 s และ Exit latency ≈ 0.0291 s ขณะที่ C2 มี Enter latency ≈ 0.4069 s และ Exit latency ≈ 0.4531 s
+
+ในด้านความเสถียร C1 มี extra switches เฉลี่ย 12.4 ครั้ง และ false trigger rate ≈ 8.39 ครั้ง/นาที ส่วน C2 มี extra switches = 0 และ false trigger = 0
+
+ดังนั้น C1 มีข้อดีคือสามารถตอบสนองได้รวดเร็ว แต่มีโอกาสเกิด chatter หรือการสลับ state ซ้ำ ๆ ใกล้ threshold ส่วน C2 ใช้ Low-pass Filter และ Hysteresis จึงมีความทนทานต่อ noise มากกว่า แต่ต้องแลกกับ response latency ที่สูงขึ้น
+
+
+ 2. เมื่อเพิ่ม noise จาก 0.01 m เป็น 0.03 m metric ใดเปลี่ยนชัดที่สุด?
+
+พิจารณาผลของ C2 ที่ delay = 0 ms พบว่า:
+
+- noise = 0.01 m: Enter latency ≈ 0.4309 s และ Exit latency ≈ 0.4171 s
+- noise = 0.03 m: Enter latency ≈ 0.4069 s และ Exit latency ≈ 0.3531 s
+
+ค่า Enter latency เปลี่ยนประมาณ 0.0240 s ขณะที่ Exit latency เปลี่ยนประมาณ 0.0640 s
+
+ดังนั้น metric ที่เปลี่ยนชัดที่สุดในผลการทดลองนี้คือ Exit latency โดยลดลงจากประมาณ 0.4171 s เป็น 0.3531 s หรือเปลี่ยนประมาณ 0.0640 s
+
+อย่างไรก็ตาม ไม่ควรสรุปว่า noise ที่มากขึ้นทำให้ controller ทำงานดีขึ้น เนื่องจากผลนี้เป็นผลจาก simulation และชุด trial ที่ทำการทดลอง ในขณะเดียวกัน C2 ยังคงรักษา false trigger = 0 และ extra switches = 0 ได้ทั้งสองระดับ noise
+
+
+ 3. เมื่อเพิ่ม sensor delay เป็น 300 ms latency เพิ่มใกล้เคียง 300 ms หรือไม่?
+
+ใช่ จากผลของ C2 ที่ noise = 0.00 m พบว่าเมื่อเพิ่ม sensor delay จาก 0 ms เป็น 300 ms ค่า Enter latency เพิ่มจากประมาณ 0.4229 s เป็น 0.7229 s ซึ่งเพิ่มขึ้นประมาณ 0.3000 s
+
+ในส่วนของ Exit latency เพิ่มจากประมาณ 0.4171 s เป็น 0.7171 s ซึ่งเพิ่มขึ้นประมาณ 0.3000 s เช่นเดียวกัน
+
+ดังนั้นผลการทดลองแสดงให้เห็นว่า sensor delay 300 ms ทำให้ response latency เพิ่มขึ้นใกล้เคียง 300 ms จริง
+
+
+ 4. C3 ชน command limit ช่วงใด และ smoothness สัมพันธ์กับ tracking error อย่างไร?
+
+จากการตรวจผล C3 ทั้ง 5 trials พบว่าค่า |command| สูงสุดมีค่าประมาณ:
+
+- r01 = 0.5282
+- r02 = 0.5194
+- r03 = 0.5324
+- r04 = 0.5187
+- r05 = 0.5243
+
+โดยค่าที่สูงที่สุดคือประมาณ 0.5324 ใน trial r03 ซึ่งยังต่ำกว่า command limit ที่กำหนดไว้ที่ ±0.6
+
+ดังนั้น C3 ไม่เกิด command saturation ในการทดลองนี้
+
+สำหรับความ smooth ของ command พบว่า MeanAbsCommandChange อยู่ประมาณ 0.00455–0.00470 ในทั้ง 5 trials ซึ่งมีค่าใกล้เคียงกัน แสดงว่า command มีการเปลี่ยนแปลงค่อนข้างต่อเนื่อง
+
+ส่วน MeanAbsTrackingError ซึ่งคำนวณเพิ่มเติมจากค่าเฉลี่ยของ |0.35 - filtered_distance| อยู่ประมาณ 0.161–0.162 m
+
+ผลนี้แสดงให้เห็นว่า command ที่ smooth ไม่ได้หมายความว่า tracking error จะต่ำเสมอ เนื่องจาก smoothness และ tracking error เป็น metric ที่วัดคุณสมบัติของ controller คนละด้านกัน
+
+
+ 5. มี invalid sample หรือไม่ และระบบจัดการอย่างไร?
+
+ในการทดลอง controller-comparison ของ C0–C3 พบว่า invalid_sample_count_mean = 0 ทุก condition จึงไม่มี invalid sample ในชุดการทดลองนี้
+
+อย่างไรก็ตาม ในการทดลอง robustness-full ของ C2 เมื่อมี sensor delay พบ invalid sample ในช่วงเริ่มต้นของ simulation โดยมีค่าเฉลี่ยดังนี้:
+
+- Delay 0 ms = 0 samples
+- Delay 100 ms = 5 samples
+- Delay 300 ms = 15 samples
+
+เมื่อ sensor sample เป็น invalid หรือ stale controller จะเรียกใช้ safe_command() และกำหนด command = 0.0 เพื่อป้องกันไม่ให้ระบบใช้ข้อมูล sensor ที่ไม่ถูกต้องในการควบคุม
+
+แนวทางนี้ช่วยให้ controller อยู่ในสถานะปลอดภัยเมื่อยังไม่มีข้อมูล sensor ที่สามารถใช้งานได้ และส่วน invalid sample นี้ผ่านการตรวจจาก grade_submission.py แล้ว
 
 ## 12. เชื่อมต่อกับหุ่นยนต์จริง
 
