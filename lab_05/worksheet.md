@@ -1,92 +1,387 @@
-# ใบงาน Lab 05 — Prediction, timing, evidence
+# ใบงาน Lab 05 — Prediction, Timing, Evidence
 
-ฉบับพิมพ์: [Word](Lab05_Student_Worksheet_TH.docx) / [PDF](Lab05_Student_Worksheet_TH.pdf)
+**เรื่อง:** Hormone → SO(2) CPG → Kinematic Walking
 
-ชื่อ/รหัส________________ กลุ่ม________ วันที่________
+**ชื่อ/รหัสนักศึกษา:** ____________________
 
-**ขอบเขต:** main runner เป็น proposed course model ใช้ scheduled stimulus และ kinematic body; contact demo ใช้ synthetic signals ไม่ใช่ ALCS terrain experiment ของ paper
+**กลุ่ม:** ____________________
 
-## 1. ก่อนรัน: hypothesis และ architecture (10 นาที)
+**วันที่:** ____________________
 
-1. วาด S→controller→R_used→φ/stride→CPG→decoder→body ของ Lab แล้ววงจุดที่ยังไม่มี independent sensory feedback
-2. เขียน hypothesis1 ข้อสำหรับ B1 เทียบ B2 พร้อมตัวชี้วัดและทิศทางที่คาด เช่น TV, latency/recovery, segmentfrequency หลีกเลี่ยงคำว่า “ดีขึ้น” โดยไม่มี metric
-3. B3 ตัดอะไรออกจาก B2? สิ่งใดที่ยังคงมี memory?
-4. ตาราง provenance: source equation1 รายการ, proposedcourseequation1 รายการ, expectedmeasurement1 รายการ และ metric ที่วัดไม่ได้ 1 รายการ
+**ขอบเขตการทดลอง:** ระบบใช้ Proposed Course Model ที่เชื่อมต่อ Hormone Mechanism เข้ากับ SO(2) CPG และ Kinematic Walking โดยใช้ Stimulus ที่กำหนดไว้ล่วงหน้า ส่วน Contact Mini-lab เป็นการทดสอบสัญญาณ Synthetic ไม่ใช่ผลทดลองการเดินบน Terrain จริงตามงานวิจัย
 
-## 2. รัน comparison และตรวจเวลา (15 นาที)
+---
 
-รัน comparison ตาม README เปิด report เลือก B2 เลื่อน timeline ไป 10.00/10.05s แล้วเปิด B2_states.csv/B2_intervals.csv เพื่อยืนยัน
+## 1. ก่อนรัน: Hypothesis และ Architecture
 
-| command/input time | state end time | H_start | H_end | R_used | φที่ใช้ | stride_half ที่ใช้ |
+### 1.1 Block Diagram ของระบบ
+
+**Stimulus (S) → Controller (B0/B1/B2/B3) → Receptor (R_used) → φ / Stride Half → SO(2) CPG → Decoder → Kinematic Body**
+
+Stimulus เป็นสัญญาณอินพุตที่กำหนดไว้ล่วงหน้าและส่งเข้าสู่ Controller ซึ่งมีรูปแบบการควบคุม 4 เงื่อนไข ได้แก่ B0, B1, B2 และ B3 จากนั้น Controller จะสร้างค่า Receptor สำหรับนำไปปรับค่า φ และ Stride Half ที่ใช้ควบคุม SO(2) CPG เพื่อสร้างสัญญาณการเคลื่อนไหวของขาหุ่นยนต์ ก่อนส่งผ่าน Decoder เข้าสู่แบบจำลอง Kinematic Walking
+
+**จุดที่ยังไม่มี Independent Sensory Feedback:** ระบบยังไม่ได้รับข้อมูลจากเซนเซอร์สัมผัสพื้นจริง แรงปฏิกิริยาจากพื้น หรือสถานะการเคลื่อนที่ของลำตัวกลับเข้ามาควบคุม CPG จึงยังไม่ใช่ระบบ Closed-loop ที่สามารถปรับตัวตามสภาพพื้นจริงได้
+
+### 1.2 Hypothesis เปรียบเทียบ B1 และ B2
+
+คาดว่า B2 ซึ่งใช้ Hormone State จะทำให้คำสั่ง φ เปลี่ยนแปลงอย่างค่อยเป็นค่อยไปกว่า B1 ซึ่งใช้ Stimulus โดยตรง เนื่องจาก B2 มีการสะสมและลดระดับของ Hormone ตามเวลา
+
+ดังนั้นคาดว่า B2 จะมีค่า Maximum φ Change per Step ต่ำกว่า B1 แต่มี Command Latency และ Command Recovery มากกว่า B1
+
+นอกจากนี้คาดว่าความถี่ CPG ในช่วงเปิด Stimulus ของ B2 จะต่ำกว่า B1 เนื่องจาก B2 ไม่ได้เปลี่ยนค่า φ ไปสู่ค่าสูงสุดทันที
+
+**ตัวชี้วัดที่ใช้ตรวจสอบ**
+
+- Maximum Δφ/step (rad)
+- Command Latency (s)
+- Command Recovery (s)
+- On-segment Frequency (Hz)
+- Total Variation ของ φ (rad)
+
+**หมายเหตุ:** สมมติฐานสำหรับ Comparison นี้เป็นการอธิบายจากแบบจำลองย้อนหลัง เนื่องจากได้รันการทดลอง Comparison ก่อนบันทึกคำตอบไว้ในใบงานแล้ว
+
+### 1.3 B3 ตัดอะไรออกจาก B2?
+
+B3 เป็น Binding Ablation โดยตัดพจน์ Binding ออกจากสมการ Hormone และกำหนดค่า `k_bind = 0`
+
+สำหรับ B2 จะมี Production, Clearance และ Binding ทำงานร่วมกัน ส่วน B3 ยังคงมี Production และ Clearance แต่ไม่มี Binding
+
+ทั้ง B2 และ B3 ยังคงมี Memory เนื่องจากค่า Hormone ในแต่ละช่วงเวลาคำนวณต่อเนื่องจากค่าของช่วงเวลาก่อนหน้า จึงมีพฤติกรรมสะสมและลดระดับต่างจาก B1 ที่ใช้ `R_used = S` โดยตรง
+
+### 1.4 Provenance
+
+| ประเภท | รายการ | ที่มาและสถานะ |
+|---|---|---|
+| Source Equation | SIF เป็นส่วนเบี่ยงเบนมาตรฐานของ SI ระหว่างขาทั้ง 6 | แนวคิดจากงานวิจัยต้นฉบับ |
+| Proposed Course Equation | H_new = clamp(H_old + dt(P − C − B), 0, 1) | แบบจำลอง Hormone ของรายวิชา |
+| Expected Measurement | การเปรียบเทียบ Expected Contact กับ Actual Contact | ใช้สัญญาณ Synthetic ใน Lab นี้ |
+| Metric ที่ยังวัดไม่ได้ | Stability, Harmony และ Displacement ตามนิยามงานวิจัย | N/A เนื่องจากยังไม่มีข้อมูลและระบบวัดที่ตรงกับงานวิจัย |
+
+---
+
+## 2. รัน Comparison และตรวจเวลา
+
+การทดลองใช้ Step Profile โดยกำหนด Stimulus ดังนี้
+
+- 0–10 s: S = 0
+- 10–20 s: S = 1
+- 20–30 s: S = 0
+
+ใช้ `dt = 0.05 s` และระยะเวลาจำลอง 30 s โดยมีการอัปเดตทั้งหมด 600 ครั้ง
+
+### 2.1 ตารางตรวจเวลา B2
+
+| Command Time (s) | State End (s) | H_start | H_end | R_used | φ (rad) | Stride Half (m) |
 |---|---|---|---|---|---|---|
-| 10.00 | | | | | | |
-| 10.05 | | | | | | |
-| 20.00 | | | | | | |
+| 10.00 | 10.05 | 0.000000 | 0.040000 | 0.000000 | 0.200000 | 0.055000 |
+| 10.05 | 10.10 | 0.040000 | 0.078400 | 0.040000 | 0.208000 | 0.055400 |
+| 20.00 | 20.05 | 0.999715 | 0.959727 | 0.999715 | 0.399943 | 0.064997 |
 
-อธิบายจาก CSV ว่าเหตุใด B1 command latency กับ state latency จึงต่างกัน: __________________
+**การวิเคราะห์**
 
-ตรวจ warmup/initialstates ใน config: ทุก condition เริ่ม CPG เหมือนกันหรือไม่? หลักฐาน__________________
+จากตารางพบว่า B2 ใช้ค่า Hormone State ณ เวลาเริ่มต้นของ Interval สำหรับสร้างคำสั่ง CPG ก่อนที่จะอัปเดตสถานะ Hormone
 
-## 3. เปรียบเทียบผลและข้อจำกัด (15 นาที)
+เมื่อ Stimulus เริ่มมีค่าเป็น 1 ที่เวลา 10.00 s ค่า H_start ยังคงเท่ากับ 0 ทำให้คำสั่ง φ และ Stride ยังเป็นค่าพื้นฐาน แต่เมื่ออัปเดตถึงเวลา 10.05 s ค่า H เพิ่มเป็น 0.04 และเริ่มทำให้คำสั่งเปลี่ยนใน Interval ถัดไป
 
-เติมจาก metrics และ segment_metrics พร้อมหน่วย ห้ามคัดลอกผล source paper มาใส่เป็นผล run นี้
+ที่เวลา 20.00 s แม้ Stimulus จะกลับเป็น 0 แต่ Hormone ยังมีค่าสะสมอยู่ ทำให้คำสั่งยังไม่ลดลงทันทีเหมือน B1
 
-| condition | TV φ(rad) | maxΔφ/step(rad) | TV stride(m) | cmd latency(s) | cmd recovery(s) | on frequency(Hz) | on distance(m) |
+### 2.2 เหตุใด B1 Command Latency กับ State Latency จึงแตกต่างกัน?
+
+B1 ใช้ Direct Mapping โดยกำหนด `R_used = S` ทำให้เมื่อ Stimulus เปลี่ยนที่เวลา 10.00 s ระบบสามารถสร้างคำสั่งใหม่ได้ทันที จึงมี Command Latency เท่ากับ 0.00 s
+
+อย่างไรก็ตาม ไฟล์ States บันทึกสถานะหลังจากอัปเดตระบบครบหนึ่งช่วงเวลา จึงเห็นการเปลี่ยนแปลงของสถานะที่เวลา 10.05 s ทำให้ State Latency เท่ากับ 0.05 s
+
+ความแตกต่างนี้เกิดจาก Timing Convention ของการจำลอง ไม่ใช่ความล่าช้าของอุปกรณ์จริง
+
+### 2.3 ทุก Condition เริ่ม CPG เหมือนกันหรือไม่?
+
+**ตอบ: เหมือนกัน**
+
+จากข้อมูล Configuration ระบบใช้ Warmup 10 s โดยกำหนด α = 1.10 และ φ = 0.20 rad เหมือนกันทุก Condition
+
+หลังจาก Warmup จะเก็บสถานะ Oscillator ที่ผ่านการ Warmup ไว้ และรีเซ็ต Hormone State, Body Origin และ Foot Anchors สำหรับเริ่มการทดลอง
+
+ค่า Initial States ที่ตรวจสอบได้ ได้แก่
+
+- o1 = −0.026965
+- o2 = −0.560863
+- Body X = 0 m
+- Receptor R = 0
+
+สำหรับ B2 และ B3 มี Hormone H เริ่มต้นเป็น 0 ส่วน B0 และ B1 ไม่มี Hormone State
+
+ดังนั้นการเปรียบเทียบ B0–B3 จึงเริ่มจาก CPG Initial State เดียวกัน ช่วยลดความแตกต่างที่เกิดจากเงื่อนไขเริ่มต้น
+
+---
+
+## 3. เปรียบเทียบผลและข้อจำกัด
+
+### 3.1 ตารางผลการทดลอง Comparison
+
+| Condition | TV φ (rad) | Max Δφ/step (rad) | TV Stride (m) | Cmd Latency (s) | Cmd Recovery (s) | On Frequency (Hz) | On Distance (m) |
 |---|---|---|---|---|---|---|---|
-| B0 | | | | | | | |
-| B1 | | | | | | | |
-| B2 | | | | | | | |
-| B3 | | | | | | | |
+| B0 | 0.0000 | 0.0000 | 0.0000 | N/A | N/A | 0.6249 | 0.7787 |
+| B1 | 0.4000 | 0.2000 | 0.0200 | 0.00 | 0.00 | 1.2684 | 1.8252 |
+| B2 | 0.3998 | 0.0080 | 0.0200 | 0.15 | 2.85 | 1.2028 | 1.7063 |
+| B3 | 0.3995 | 0.0080 | 0.0200 | 0.15 | 3.80 | 1.2258 | 1.7275 |
 
-1. ผลข้อใดสนับสนุน hypothesis และผลข้อใดไม่สนับสนุน? __________________
-2. การลด TV ยืนยันว่าหุ่นยนต์ไม่ล้มหรือใช้พลังงานน้อยลงหรือไม่? ขาดข้อมูลอะไร? __________________
-3. Bounds เหมือนกันทำให้ commandamplitude เท่ากันหรือไม่? ใช้ peak/trace ประกอบ __________________
-4. ทำไมไม่ใช้ frequency เฉลี่ย 30s แทน pre/on/off? __________________
+### 3.2 ผลใดสนับสนุนหรือไม่สนับสนุน Hypothesis?
 
-## 4. เปลี่ยนหนึ่งปัจจัยและตรวจ fault (20 นาที)
+ผลการทดลองสนับสนุนสมมติฐานที่ว่า B2 สามารถลดการเปลี่ยนแปลงคำสั่งแบบฉับพลันได้
 
-เลือก phi-only หรือ stride-only ตั้ง prediction ก่อนรัน ตรวจ parameter ที่คงที่จาก intervalCSV แล้วเปรียบเทียบ B1/B2 กับ bothmapping
+โดย B1 มีค่า Maximum Δφ/step เท่ากับ 0.2000 rad ขณะที่ B2 มีค่าเพียง 0.0080 rad แสดงว่า B2 เปลี่ยนคำสั่ง φ ทีละน้อยกว่า B1
 
-สิ่งที่เปลี่ยน________ สิ่งที่คงที่________ metric หลัก________ prediction________
+นอกจากนี้ B2 มี Command Latency 0.15 s และ Recovery 2.85 s ส่วน B1 มีค่าเท่ากับ 0.00 s ทั้งสองตัวชี้วัด จึงสนับสนุนว่าระบบ Hormone มีการหน่วงและความจำของสถานะ
 
-ผลและข้อจำกัด causalclaim: __________________
+ความถี่ในช่วง On ของ B2 เท่ากับ 1.2028 Hz ต่ำกว่า B1 ที่ 1.2684 Hz ตามทิศทางที่คาดการณ์ไว้
 
-รัน faultprofile เปิด input15.00 แล้วบันทึก:
+อย่างไรก็ตาม ค่า Total Variation ของ B1 เท่ากับ 0.4000 rad และ B2 เท่ากับ 0.3998 rad ซึ่งใกล้เคียงกันมาก จึงไม่สามารถสรุปว่าระบบ Hormone ลด Total Variation ได้อย่างมีนัยสำคัญจากผลนี้
 
-| field | B2 value |
-|---|---|
-| fault at command15.00 | |
-| H_used / R_used | |
-| φ / stride ที่ใช้ | |
-| H state15.05 | |
-| H state15.10 | |
+### 3.3 การลด TV ยืนยันว่าหุ่นยนต์ไม่ล้มหรือใช้พลังงานน้อยลงหรือไม่?
 
-อธิบายว่า fallback ทำก่อนหรือหลัง command และเหตุใด policy นี้ยังไม่รับรอง hardware safety: __________________
+**ตอบ: ไม่สามารถยืนยันได้**
 
-## 5. Contact mini-lab (20 นาที)
+Total Variation เป็นตัวชี้วัดผลรวมของการเปลี่ยนแปลงคำสั่ง ไม่ใช่การวัดความมั่นคงในการเดินหรือการใช้พลังงานโดยตรง
 
-เปิด contactreport เลือก cases ด้านล่าง เปรียบเทียบ SI, SIF, absoluteerror และ validity
+ข้อมูลที่ยังขาด ได้แก่
 
-| case | SI ของแต่ละขาโดยทั่วไป | SIF | absoluteerror | สิ่งที่อนุมานไม่ได้ |
+- ตำแหน่งจุดศูนย์กลางมวล (Center of Mass)
+- Support Polygon และการทรงตัว
+- แรงสัมผัสพื้นและแรงเสียดทาน
+- การลื่นไถลของขา
+- แรงบิดและกระแสไฟฟ้าของมอเตอร์
+- พลังงานที่ใช้ระหว่างเดิน
+
+จึงยังไม่สามารถยืนยันว่าหุ่นยนต์จะไม่ล้มหรือใช้พลังงานน้อยลงจากค่า TV เพียงอย่างเดียว
+
+### 3.4 Bounds เหมือนกันทำให้ Command Amplitude เท่ากันหรือไม่?
+
+**ตอบ: ไม่จำเป็น**
+
+แม้ทุก Condition จะมีขอบเขตของ φ และ Stride เหมือนกัน แต่ค่าคำสั่งจริงขึ้นอยู่กับ Receptor ที่ Controller สร้างขึ้น
+
+ตัวอย่างเช่น B1 เปลี่ยนค่า φ จาก 0.20 เป็น 0.40 rad ทันทีเมื่อ Stimulus เปิด ส่วน B2 และ B3 ค่อย ๆ เพิ่มค่า φ ตามการสะสม Hormone
+
+แม้คำสั่งจะเข้าใกล้ค่าสูงสุดเดียวกัน แต่เส้นทางการเปลี่ยนแปลงและระยะเวลาในการตอบสนองไม่เหมือนกัน
+
+ดังนั้น Bounds เป็นเพียงการจำกัดช่วงค่าที่อนุญาต ไม่ได้ทำให้รูปแบบการตอบสนองของทุก Controller เท่ากัน
+
+### 3.5 ทำไมไม่ใช้ Frequency เฉลี่ย 30 s แทน Pre/On/Off?
+
+เพราะความถี่ของ CPG เปลี่ยนไปตาม Stimulus และ Hormone State ในแต่ละช่วงเวลา
+
+ตัวอย่าง B2 มีค่าความถี่ดังนี้
+
+| Segment | Frequency (Hz) |
+|---|---:|
+| Pre: 0–10 s | 0.6249 |
+| On: 10–20 s | 1.2028 |
+| Off: 20–30 s | 0.6982 |
+
+ช่วง On มีความถี่สูงกว่าช่วง Pre อย่างชัดเจน และช่วง Off ยังมีผลตกค้างจาก Hormone ทำให้ความถี่ไม่กลับสู่ค่าพื้นฐานทันที
+
+หากใช้ค่าเฉลี่ยตลอด 30 s จะทำให้พฤติกรรมแต่ละช่วงถูกรวมเข้าด้วยกันและไม่สามารถมองเห็นการตอบสนองชั่วคราวของระบบได้ชัดเจน
+
+---
+
+## 4. เปลี่ยนหนึ่งปัจจัยและตรวจ Fault
+
+### 4.1 One-factor Experiment: Phi-only
+
+**สิ่งที่เปลี่ยน:** ให้ Receptor ปรับเฉพาะค่า φ ของ CPG
+
+**สิ่งที่คงที่:** Stride Half = 0.055 m, α = 1.10, dt = 0.05 s และค่าพารามิเตอร์ Hormone เหมือนกับการทดลอง Both Mapping
+
+**Metric หลัก:** On Frequency, On Distance, Total Distance และ TV Stride
+
+**Prediction:** คาดว่าเมื่อใช้ Phi-only ความถี่ CPG ของ Condition เดียวกันจะไม่เปลี่ยนเมื่อเทียบกับ Both Mapping แต่ระยะทางการเคลื่อนที่จะลดลง เพราะไม่ได้เพิ่ม Stride ตาม Receptor
+
+### 4.2 ตารางผล Phi-only เทียบ Both Mapping
+
+| Condition | Mapping | On Frequency (Hz) | On Distance (m) | Total Distance (m) |
 |---|---|---|---|---|
-| matched | | | | |
-| gain-offset | | | | |
-| mixed-delay | | | | |
-| all-inverted | | | | |
-| constant | | | | |
+| B1 | Both | 1.2684 | 1.8252 | 3.3775 |
+| B1 | Phi-only | 1.2684 | 1.5491 | 3.0993 |
+| B2 | Both | 1.2028 | 1.7063 | 3.3826 |
+| B2 | Phi-only | 1.2028 | 1.4672 | 3.1173 |
 
-1. ทำไม gain-offset ให้ correlation สูงแม้ error ไม่เป็น 0? __________________
-2. เมื่อทุกขา inverted ทำไม SIF จึงยังเป็น 0? release ที่ SIF0 มีค่าเท่าไร? __________________
-3. constant ควรเป็น SI0 หรือ N/A? __________________
-4. fault หนึ่ง sample มีผลต่อ rollingwindows กี่ rows ไม่นับ startup49rows? ตรวจ CSV__________________
-5. pairedPearson ของ demo มีสถานะ source/proposed ใด? ต่อ Cg/MI แล้วหรือยัง? __________________
+### 4.3 วิเคราะห์ผล One-factor
 
-## 6. ส่งงานและ exit ticket (10 นาที)
+ผลการทดลองแสดงว่าความถี่ CPG ของ B1 และ B2 ไม่เปลี่ยนเมื่อเปรียบเทียบ Phi-only กับ Both Mapping ใน Condition เดียวกัน เนื่องจากการทดลองยังใช้การควบคุม φ เหมือนเดิม
 
-ส่ง prediction ก่อนรัน, config/manifest/rawCSV ของ comparison+one-factorrun+fault, contactmetrics และ CSV หนึ่ง case ที่อภิปราย, ตารางพร้อมหน่วยและกราฟ 2 รูป พร้อมรายงาน 2–3 หน้า บอกคำสั่งและ Pythonversion เพื่อรันซ้ำ
+อย่างไรก็ตาม ระยะทางลดลงเมื่อใช้ Phi-only โดย B1 ลดจาก 3.3775 m เหลือ 3.0993 m และ B2 ลดจาก 3.3826 m เหลือ 3.1173 m
 
-Exit: เขียนหนึ่ง claim ที่ข้อมูลรองรับ และหนึ่ง claim ที่ยังรองรับไม่ได้ พร้อมชื่อ metric/ข้อมูลที่ต้องเพิ่ม
+คิดเป็นระยะทางที่ลดลงประมาณ 0.2782 m สำหรับ B1 และ 0.2653 m สำหรับ B2
 
-**Rubric20 คะแนน:** architecture/provenance4; timing/fault4; reproducibility/data3; quantitativecomparison/one-factor5; interpretation/contact/N/A4 คะแนนมาจากเหตุผลกับหลักฐาน ไม่ได้ให้เต็มเพราะ runner รันผ่านหรือเพราะผล “ดีขึ้น” ตามคาด
+ค่า TV Stride ของ Phi-only เท่ากับ 0 เพราะ Stride ถูกกำหนดให้คงที่ตลอดการทดลอง
 
-**Workshop 25 นาทีในคาบ Week05:** ทำข้อ 1 แบบย่อ 5 นาที, ข้อ 2 10 นาที, ข้อ 3 10 นาที ส่วน one-factor/fault/contact เป็น extended lab หรือการบ้าน ใช้เวลารวม 90 นาทีตามใบงาน ไม่รวมเวลาติดตั้ง Python
+**ข้อจำกัด:** ผลนี้สนับสนุนว่าการปรับ Stride มีผลต่อระยะทางในแบบจำลองที่ใช้ แต่ยังไม่สามารถสรุปพฤติกรรมของหุ่นยนต์จริงได้ เนื่องจากแบบจำลองไม่มี Body Dynamics, แรงเสียดทาน และการลื่นไถล
+
+### 4.4 Fault Test ของ B2
+
+| Field | B2 Value |
+|---|---|
+| Fault at Command 15.00 s | 1 |
+| H_used / R_used | 0.0000 / 0.0000 |
+| φ ที่ใช้ | 0.2000 rad |
+| Stride Half ที่ใช้ | 0.0550 m |
+| H State 15.05 s | 0.0000 |
+| H State 15.10 s | 0.0400 |
+
+จากผล `B2_intervals.csv` พบว่าเมื่อ Stimulus ที่เวลา 15.00 s เป็น NaN ระบบตรวจพบ Fault และรีเซ็ต Hormone State เป็น 0 พร้อมกำหนด R_used = 0 ก่อนส่งคำสั่งเข้าสู่ CPG
+
+จึงใช้คำสั่ง Fallback ได้แก่ φ = 0.20 rad และ Stride Half = 0.055 m
+
+เมื่ออินพุตกลับมาปกติในช่วงถัดไป ระบบเริ่มสะสม Hormone ใหม่ โดย H State ที่เวลา 15.10 s เท่ากับ 0.04
+
+**เหตุใด Fallback ยังไม่รับประกัน Hardware Safety?**
+
+เนื่องจากเป็นเพียงนโยบายจัดการค่าผิดปกติในระดับซอฟต์แวร์ ยังไม่มีการทดสอบการหยุดมอเตอร์จริง ระบบตัดกำลังไฟฟ้า Watchdog การสูญเสียการสื่อสาร หรือการตอบสนองเมื่อหุ่นยนต์เกิดความขัดข้องทางกล
+
+จึงไม่สามารถนำผลการทดลองนี้ไปยืนยันความปลอดภัยของหุ่นยนต์จริงได้โดยตรง
+
+---
+
+## 5. Contact Mini-lab
+
+การทดลองนี้ใช้สัญญาณ Synthetic เพื่อเปรียบเทียบ Expected Contact กับ Actual Contact ของขาทั้ง 6 และวิเคราะห์ค่า SI, SIF, Mean Absolute Error และ Valid Rows
+
+### 5.1 ตารางเปรียบเทียบ Contact
+
+| Case | SI โดยทั่วไป | Mean SIF | MAE | Valid Rows | สิ่งที่อนุมานไม่ได้ |
+|---|---|---|---|---|---|
+| Matched | +1 ทุกขา | 0.0000 | 0.0000 | 551 | ไม่ยืนยันการสัมผัสพื้นจริง |
+| Gain-offset | +1 ทุกขา | ≈0 | 0.1628 | 551 | ไม่ยืนยันว่า Amplitude และ Offset ถูกต้อง |
+| Mixed-delay | 3 ขา ≈+1 และ 3 ขา ≈0 | 0.5000 | 0.2260 | 551 | ไม่ยืนยันความมั่นคงของการเดิน |
+| All-inverted | −1 ทุกขา | ≈0 | 0.6314 | 551 | ไม่บอกว่าทุกขาผิดเหมือนกัน |
+| Constant | N/A | N/A | 0.0000 | 0 | ไม่สามารถคำนวณ Correlation |
+| Fault | ขาที่ Valid ≈+1 | 0.0000 | 0.0000 | 501 | ค่าเฉลี่ยไม่แสดงข้อมูลที่ใช้ไม่ได้ทั้งหมด |
+
+### 5.2 ทำไม Gain-offset ให้ Correlation สูงแม้ Error ไม่เป็น 0?
+
+เพราะ Pearson Correlation วัดความสัมพันธ์เชิงเส้นระหว่างสัญญาณ ไม่ได้วัดความแตกต่างของขนาดสัญญาณและ Offset โดยตรง
+
+ในกรณี Gain-offset กำหนดให้ Actual = 0.2 + 0.5 × Expected ซึ่งยังคงความสัมพันธ์เชิงเส้นบวก ทำให้ SI มีค่าใกล้ +1 แม้ Actual จะแตกต่างจาก Expected
+
+ดังนั้นค่า Correlation สูงจึงไม่หมายความว่าค่าสัญญาณทั้งสองตรงกันทุกจุด โดยการทดลองนี้มี MAE เท่ากับ 0.1628
+
+### 5.3 เมื่อทุกขา All-inverted ทำไม SIF จึงยังเป็น 0 และ Release มีค่าเท่าไร?
+
+กรณี All-inverted ทำให้ค่า Actual มีทิศทางกลับกันกับ Expected ส่งผลให้ SI ของทุกขาเท่ากับประมาณ −1
+
+เนื่องจาก SI ของทั้ง 6 ขามีค่าเท่ากัน ส่วนเบี่ยงเบนมาตรฐานระหว่างขาจึงเป็น 0 ทำให้ SIF = 0 แม้ทุกขาจะมีความสัมพันธ์แบบกลับทิศทาง
+
+สมการ Release คือ
+
+**Release = 1 / (1 + exp(−SIF))**
+
+เมื่อ SIF = 0 จะได้
+
+**Release = 0.5**
+
+จึงสรุปได้ว่า SIF เพียงอย่างเดียวไม่สามารถบอกได้ว่าความสัมพันธ์ของทุกขาเป็นบวกหรือเป็นลบ หากทุกขามี SI เท่ากัน
+
+### 5.4 Constant ควรเป็น SI = 0 หรือ N/A?
+
+**ตอบ: N/A**
+
+เนื่องจากสัญญาณ Constant ไม่มีความแปรปรวน ทำให้ตัวส่วนของสมการ Pearson Correlation เป็นศูนย์ จึงไม่สามารถคำนวณ SI ได้
+
+การกำหนดค่า SI = 0 จะทำให้เข้าใจผิดว่าเป็นสัญญาณที่ไม่มีความสัมพันธ์ ทั้งที่จริงแล้วไม่สามารถคำนวณ Correlation ได้ตามนิยาม
+
+### 5.5 Fault หนึ่ง Sample กระทบ Rolling Windows กี่แถว?
+
+**ตอบ: 50 แถว ไม่นับ Startup 49 แถว**
+
+Fault เกิดที่ Sample 300 หรือเวลา 15.00 s โดยค่า Actual ของขา LF เป็น NaN เพียงหนึ่ง Sample
+
+Rolling Window มีขนาด 50 Samples ทำให้ Sample ที่ผิดปกติอยู่ภายใน Window ตั้งแต่ Sample 300 ถึง 349 รวมทั้งหมด 50 แถว
+
+เมื่อถึง Sample 350 ค่า NaN หลุดออกจาก Window และระบบกลับมาคำนวณ Correlation ได้ตามปกติ
+
+ช่วงเริ่มต้นอีก 49 แถวไม่สามารถคำนวณได้เนื่องจากยังมีข้อมูลไม่ครบ Window
+
+ดังนั้นจำนวนแถวที่ Valid ของกรณี Fault เท่ากับ
+
+**600 − 49 − 50 = 501 แถว**
+
+ซึ่งตรงกับผลการทดลอง
+
+### 5.6 Paired Pearson เป็น Source หรือ Proposed? เชื่อมต่อ Cg/MI แล้วหรือยัง?
+
+Paired-product Pearson ที่ใช้ใน `contact_demo.py` เป็น **Proposed Course Definition** ไม่ใช่การยืนยันว่า Implement สมการ SI ตามงานวิจัยต้นฉบับทุกประการ
+
+ส่วนแนวคิด SIF และ Release มีที่มาจากงานวิจัย แต่ใน Lab นี้นำมาทดลองกับสัญญาณ Synthetic เท่านั้น
+
+ระบบยังไม่ได้เชื่อม Feedback เข้ากับ Cg, HR หรือ MI_H และยังไม่ได้นำค่าจาก Contact กลับมาควบคุม CPG ของหุ่นยนต์จริง
+
+---
+
+## 6. ส่งงานและ Exit Ticket
+
+### 6.1 สรุปผลการทดลอง
+
+จากการเปรียบเทียบ B0–B3 พบว่าการใช้ Hormone Controller สามารถทำให้การเปลี่ยนแปลงคำสั่ง CPG ต่อหนึ่งขั้นเวลาค่อยเป็นค่อยไปกว่า Direct Controller โดย B2 มี Maximum Δφ/step เท่ากับ 0.0080 rad ขณะที่ B1 เท่ากับ 0.2000 rad
+
+อย่างไรก็ตาม B2 มี Command Latency และ Recovery มากกว่า B1 ซึ่งแสดงถึงผลของการสะสมและลดระดับ Hormone
+
+การทดลอง Phi-only พบว่าการคง Stride ไว้ที่ 0.055 m ทำให้ระยะทางการเคลื่อนที่ลดลงเมื่อเทียบกับ Both Mapping แม้ความถี่ CPG ใน Condition เดียวกันยังเท่าเดิม
+
+ส่วน Contact Mini-lab แสดงให้เห็นข้อจำกัดของการใช้ Correlation และ SIF เพียงอย่างเดียว เช่น กรณี All-inverted มี SIF ใกล้ศูนย์ทั้งที่สัญญาณกลับทิศทางทุกขา และกรณี Constant ไม่สามารถคำนวณ SI ได้ จึงต้องรายงานเป็น N/A
+
+### 6.2 Exit Ticket
+
+**หนึ่ง Claim ที่ข้อมูลรองรับ**
+
+ภายใต้ Proposed Course Model ระบบ B2 เปลี่ยนคำสั่ง φ ต่อหนึ่งขั้นเวลาน้อยกว่า B1 โดย B2 มี Maximum Δφ/step = 0.0080 rad และ B1 = 0.2000 rad ซึ่งสนับสนุนว่าการใช้ Hormone ช่วยลดการเปลี่ยนคำสั่งแบบฉับพลันในแบบจำลอง
+
+**หลักฐาน:** `results/comparison/metrics.csv` และกราฟคำสั่ง φ ตามเวลา
+
+**หนึ่ง Claim ที่ข้อมูลยังไม่รองรับ**
+
+ยังไม่สามารถสรุปว่าการใช้ Hormone ทำให้หุ่นยนต์เดินบนพื้นขรุขระได้มั่นคงขึ้นหรือใช้พลังงานน้อยลง เนื่องจากแบบจำลองยังไม่มีการทดสอบกับ Terrain จริง ไม่มีข้อมูลแรงสัมผัสพื้น การลื่นไถล ตำแหน่ง CoM และพลังงานของมอเตอร์
+
+**ข้อมูลที่ต้องเพิ่ม:** Ground Reaction Force, Stability Metrics, Motor Torque, Current, Power Consumption และการทดลองหุ่นยนต์จริง
+
+### 6.3 หลักฐานที่ต้องแนบ
+
+- [x] Prediction / Hypothesis พร้อมคำอธิบาย
+- [x] Comparison B0–B3 และ Raw CSV
+- [x] Phi-only Experiment และ Raw CSV
+- [x] Fault Test และ Raw CSV
+- [x] Contact Metrics และ CSV ของกรณีทดลอง
+- [x] ตาราง Metrics พร้อมหน่วย
+- [x] ผลตรวจ Timing และ Fault
+- [x] ผลวิเคราะห์ Contact Mini-lab
+- [x] Config / Manifest จากการทดลอง
+- [x] รายงาน Lab 05 จำนวน 3 หน้า พร้อมกราฟ 2 รูป
+- [x] คำสั่งสำหรับทำซ้ำและ Python Version
+- [ ] Push ไฟล์ทั้งหมดขึ้น GitHub และตรวจสถานะ Repository
+
+### 6.4 คำสั่งสำหรับทำซ้ำ
+
+**Python Version:** Python 3.11.9
+
+**Comparison B0–B3**
+
+`py -3 lab05.py --condition all --profile step --mapping both --output-dir results/comparison`
+
+**Phi-only**
+
+`py -3 lab05.py --mapping phi-only --output-dir results/phi_only`
+
+**Fault Test**
+
+`py -3 lab05.py --condition all --profile fault --output-dir results/fault`
+
+**Contact Mini-lab**
+
+`py -3 contact_demo.py --output-dir results/contact`
+
+**หมายเหตุ:** การรันซ้ำควรกำหนด Output Directory ใหม่หากต้องการเก็บผลเดิมไว้เป็นหลักฐาน เพื่อป้องกันการเขียนทับข้อมูล
+
+### สรุปท้ายใบงาน
+
+Lab 05 แสดงให้เห็นว่าการเชื่อม Hormone Mechanism เข้ากับ SO(2) CPG สามารถส่งผลต่อรูปแบบคำสั่ง ความถี่ และระยะทางการเคลื่อนที่ใน Kinematic Walking Model ได้ โดย Hormone Controller ทำให้คำสั่งเปลี่ยนอย่างค่อยเป็นค่อยไป แต่มีการตอบสนองและการกลับสู่ค่าพื้นฐานที่ช้ากว่า Direct Controller
+
+อย่างไรก็ตาม ผลการทดลองทั้งหมดเป็นผลจาก Proposed Course Model และ Synthetic Signals จึงไม่สามารถนำไปยืนยันประสิทธิภาพการเดิน ความมั่นคง หรือความปลอดภัยของหุ่นยนต์จริง รวมถึงผลของ ALCS ตามงานวิจัยต้นฉบับได้โดยตรง
