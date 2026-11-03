@@ -1,24 +1,41 @@
-"""Student assignment: complete an explicit transition table.
 
-All mappings are a proposed course model. The engine already implements sensor
-guards, bounded movement/RGB and output scheduling. Edit only this function.
-Return a state name, or None when the event has no transition.
+"""Lab 06 — Student baseline FSM policy.
+
+All transitions are part of the proposed course model.
+Return a state name or None (hold).
 """
 
-
 def transition(current_state: str, event: str) -> str | None:
+
+    # Safety and recovery events.
     if event == "fault":
         return "normal"
+
     if event == "near":
         return "afraid"
+
     if event == "clear":
         return "normal"
+
+    # Afraid guard: ignore lower-priority events.
     if current_state == "afraid":
         return None
+
+    # Positive interactions.
+    if event == "touch":
+        return "happy"
+
     if event in ("button", "approach"):
         return "interested"
-    # TODO 1: touch should enter happy from any state except afraid.
-    # TODO 2: timeout should return interested/happy to normal.
-    # TODO 3: idle should change normal to sleepy.
-    # Keep unrelated combinations as None. Test and explain every table row.
+
+    # Active-state timeout.
+    if event == "timeout":
+        if current_state in ("interested", "happy"):
+            return "normal"
+
+    # Inactivity.
+    if event == "idle" and current_state == "normal":
+        return "sleepy"
+
+    # Other combinations: hold.
     return None
