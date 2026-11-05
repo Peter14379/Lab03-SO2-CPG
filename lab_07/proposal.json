@@ -1,22 +1,123 @@
+
 {
-  "question": "TODO measurable research question",
-  "hypothesis": "TODO direction and boundary",
-  "biological_inspiration_source": "TODO source and exact mechanism",
-  "AHM_equation": "TODO source equation and at least one hormone",
-  "SO2_CPG_equation": "TODO Dr. Poramate SO(2) CPG notation",
-  "integration_description": "TODO AHM-CPG or AHM-emotion path",
-  "independent_variable": "TODO one planned factor",
-  "conditions": [{"name":"C0", "baseline":true, "change":"TODO baseline", "repeats":3}, {"name":"C1", "baseline":false, "change":"TODO one change", "repeats":3}],
-  "metrics": [{"name":"TODO metric1", "unit":"TODO", "measurement":"TODO measured boundary", "missing_rule":"TODO"}, {"name":"TODO metric2", "unit":"TODO", "measurement":"TODO measured boundary", "missing_rule":"TODO"}],
-  "controls": ["TODO policy", "TODO stimuli", "TODO hardware/configuration"],
-  "parameters": [{"name":"TODO", "value":null, "unit":"TODO", "provenance":"TODO source or proposed course model"}],
-  "simulation_plan":"TODO graph/clock/traces",
-  "real_robot_plan":"TODO sensors/mapping/calibration/actuator measurement",
-  "clock_correlation_plan":"TODO source ID/clock sync/error bound/log wrapper",
-  "safety_stop_plan":"TODO stop condition and operator",
-  "order_counterbalancing":"TODO C0/C1 order across repeats",
-  "paired_seed_or_participant_plan":"TODO paired assignment and consent handling",
-  "expected_input_ids_before_run":"TODO expected response denominator",
-  "human_scenario_duration_s":600,
-  "timeline":"TODO implementation/calibration/trials/analysis dates"
+  "question": "How does the C1 simulated transport profile with delay, jitter, and message loss affect the Robot Lamp response success rate and fault ticks compared with the ideal C0 baseline across three paired seeds?",
+
+  "hypothesis": "C1 is expected to have fewer successful movement-and-RGB responses within 1 second and more fault ticks than C0 because of simulated transport disturbances. The current experiment cannot isolate the effects of delay and message loss individually.",
+
+  "biological_inspiration_source": "The Robot Lamp is inspired by animal neural rhythm generation and endocrine modulation. Animals use central pattern generators (CPGs) to produce rhythmic motion, while neuromodulatory mechanisms adapt behavior to external stimuli. The proposed controller combines an artificial hormone with an SO(2) neural CPG. Relevant references include Manoonpong, Pasemann and Roth (2007), Modular Reactive Neurocontrol for Biologically Inspired Walking Machines, DOI:10.1177/0278364906076263, and Homchanthanakul and Manoonpong (2021), Continuous Online Adaptation of Bioinspired Adaptive Neuroendocrine Control for Autonomous Walking Robots, DOI:10.1109/TNNLS.2021.3119127.",
+
+  "AHM_equation": "Proposed Artificial Hormone Model with one arousal hormone A: A[k+1] = clip(A[k] + dt*(alpha*u[k] - beta*A[k]), 0, 1). Here alpha=0.75 1/s, beta=0.30 1/s, and u[k] represents accepted human interaction. Arousal increases during interaction and decays without interaction. These are proposed design values requiring simulation and physical calibration.",
+
+  "SO2_CPG_equation": "Proposed Dr. Poramate Manoonpong-style SO(2) neural CPG: o[k+1] = tanh(W(phi)*o[k] + b), where o=[o1,o2]^T and W(phi)=g*[[cos(phi),sin(phi)],[-sin(phi),cos(phi)]]. Initial proposed parameters are phi=0.20 rad/step and g=1.10. The two-neuron recurrent oscillator generates rhythmic signals for lamp movement. This simplified proposed equation must be checked against the assigned course formulation before hardware implementation.",
+
+  "integration_description": "The Robot Lamp combines an FSM, Artificial Hormone Model, and SO(2) CPG. Webcam gesture and microphone inputs are processed by a PC. The interaction FSM selects normal, interested, happy, afraid, or sleepy. The AHM arousal variable is planned to modulate the amplitude of CPG-generated servo motion. The output will control four bus servos and WS2812B RGB LEDs through an ESP32-WROOM-32. ROS2 communication uses seven /lamp topics with RELIABLE, KEEP_LAST depth 10, and VOLATILE QoS. Fault, STOP, and invalid or stale inputs override the CPG and apply safe commands. Current Lab07 offline experiments implement the FSM transport model; AHM and CPG are proposed future extensions.",
+
+  "independent_variable": "Simulated transport condition: C0 ideal communication versus C1 combined delay, jitter, random message drops, and burst loss. Input stimuli, FSM policy, simulation duration, and scheduler settings remain controlled.",
+
+  "conditions": [
+    {
+      "name": "C0",
+      "baseline": true,
+      "change": "Ideal simulated communication with zero transport delay and zero message drop, using the same FSM and input sequence as C1.",
+      "repeats": 3
+    },
+    {
+      "name": "C1",
+      "baseline": false,
+      "change": "Simulated transport disturbances with delay choices 0, 0.02, 0.04, 0.06, 0.10, 0.14, and 0.18 seconds, random drop probability 0.08, and burst loss from 12.50 to 12.70 seconds.",
+      "repeats": 3
+    }
+  ],
+
+  "metrics": [
+    {
+      "name": "both_onset_success_rate",
+      "unit": "successful inputs / 7",
+      "measurement": "Count the seven predefined expected source inputs that produce both simulated movement and RGB onset within 1 second of source time during the 22-second observation window.",
+      "missing_rule": "If either onset is absent, record missing with null or N/A latency, never zero. If both onsets occur after 1 second, record a deadline failure."
+    },
+    {
+      "name": "transport_received_fraction",
+      "unit": "fraction",
+      "measurement": "Calculate received messages divided by published messages using input_trace.csv. Report dropped, out-of-order, and censored messages separately.",
+      "missing_rule": "If published messages equal zero or the trace is incomplete, record N/A instead of assuming zero."
+    },
+    {
+      "name": "fault_ticks",
+      "unit": "ticks",
+      "measurement": "Count simulation ticks where invalid or stale sensor inputs trigger fault handling. The 22-second simulation contains 1101 ticks.",
+      "missing_rule": "If fault observations are unavailable, record N/A and mark the trial as incomplete."
+    }
+  ],
+
+  "controls": [
+    "Use identical input stimuli and paired seeds 41, 42, and 43 for C0 and C1.",
+    "Keep the same completed_policy.py FSM, filtering logic, safety bounds, and output mapping.",
+    "Keep simulation duration at 22 seconds, dt at 0.02 seconds, and scheduler delay at 0.04 seconds.",
+    "Use the same seven expected input IDs and one-second response deadline for both conditions.",
+    "For future physical trials, control camera position, room lighting, supply voltage, servo calibration, participant instructions, and measurement equipment."
+  ],
+
+  "parameters": [
+    {
+      "name": "simulation_duration",
+      "value": 22,
+      "unit": "s",
+      "provenance": "Lab07 README proposed course model"
+    },
+    {
+      "name": "simulation_dt",
+      "value": 0.02,
+      "unit": "s/tick",
+      "provenance": "Lab07 README proposed course model"
+    },
+    {
+      "name": "scheduler_delay",
+      "value": 0.04,
+      "unit": "s",
+      "provenance": "Lab07 README proposed course model"
+    },
+    {
+      "name": "C1_random_drop_probability",
+      "value": 0.08,
+      "unit": "fraction",
+      "provenance": "Lab07 README proposed transport profile"
+    },
+    {
+      "name": "AHM_alpha",
+      "value": 0.75,
+      "unit": "1/s",
+      "provenance": "Proposed design value, not yet calibrated"
+    },
+    {
+      "name": "AHM_beta",
+      "value": 0.30,
+      "unit": "1/s",
+      "provenance": "Proposed design value, not yet calibrated"
+    },
+    {
+      "name": "SO2_phase_increment",
+      "value": 0.20,
+      "unit": "rad/step",
+      "provenance": "Proposed CPG design value, not yet calibrated"
+    }
+  ],
+
+  "simulation_plan": "Run offline_lab.py using completed_policy.py under C0 and C1, each with three paired repeats using seeds 41, 42, and 43. Every trial lasts 22 seconds. Record input_trace.csv, command_trace.csv, events.csv, metrics.json, config.json, summary.json, manifest.json, and source_snapshot. Compare success rates, message loss, out-of-order messages, fault ticks, and missing responses. Replay C1 seed 42 and verify command_trace.csv and events.csv using SHA-256. The six offline trials and replay have already been performed. AHM and SO(2) CPG implementation remains future work.",
+
+  "real_robot_plan": "Future physical testing will use Ubuntu 24.04 with ROS2 Jazzy and seven application topics. A PC will process USB webcam gesture and microphone inputs. A future bridge will communicate with ESP32-WROOM-32 to control four bus servos through a Waveshare Bus Servo Adapter and WS2812B RGB LEDs. Before testing, verify servo IDs, electrical wiring, actuator limits, RGB mapping, emergency stop, and watchdog behavior. Compare nominal and controlled transport-stress conditions with at least three repeats per condition. Perform a supervised 600-second human interaction scenario with consent and synchronized video or sensors to measure actual movement and LED onset. These hardware experiments have not yet been completed.",
+
+  "clock_correlation_plan": "The offline experiment uses simulated timestamps from one virtual clock. ROS2 Bool, String, Float32, and ColorRGBA messages do not contain source timestamps. Future ROS nodes will log perf_counter_ns, node identity, host identity, local sequence, phase, and payload. Cross-node timestamps will not be subtracted without clock synchronization or correlation. Physical latency will be measured using synchronized video, photodiodes, or actuator position measurements, with measurement resolution and synchronization error documented.",
+
+  "safety_stop_plan": "The physical Robot Lamp will default to DISARMED. Provide a manual emergency stop and power cutoff, current-limited supplies, safe servo angle limits, slew-rate limits, collision checks, communication watchdog, and neutral fallback. If an invalid input, stale data, communication loss, unexpected movement, or STOP occurs, the controller must inhibit unsafe actuation and require operator re-arming. Human tests require supervision and consent before recording.",
+
+  "order_counterbalancing": "Use paired seeds 41, 42, and 43. For planned physical trials alternate the C0 and C1 testing order across repeats, for example C0-C1, C1-C0, and C0-C1. Reset controller state and calibration conditions between trials to reduce ordering and carryover effects.",
+
+  "paired_seed_or_participant_plan": "Offline C0 and C1 use the same synthetic input sequence within each paired seed 41, 42, and 43. For future real robot tests, recruit consenting adult participants, counterbalance condition order, provide rest breaks, and record paired physical responses separately from simulated results. No human participant measurements are claimed at this stage.",
+
+  "expected_input_ids_before_run": "The seven predefined positive source input IDs are button_01, touch_01, approach_01, clear_01, near_01, clear_02, and button_02. The same set and denominator of seven are used for C0 and C1. Other external inputs, including conflict and fault probes, remain in the complete input accounting.",
+
+  "human_scenario_duration_s": 600,
+
+  "timeline": "Proposed schedule: November 6-9, 2026 inspect ROS2 topic contract and offline results; November 10-15 implement and simulate AHM with SO(2) CPG; November 16-21 calibrate ESP32, four bus servos, RGB, and safety systems; November 22-27 conduct supervised 600-second physical interaction trials if hardware safety validation passes; November 28-30 analyze results and prepare the final 2-3 page proposal. Dates are provisional and depend on hardware readiness."
 }
