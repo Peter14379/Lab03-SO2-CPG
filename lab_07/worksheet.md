@@ -275,6 +275,13 @@ Real Robot มีแผนใช้ ROS 2 Jazzy เชื่อมต่อ ESP3
 - [x] Measurement Boundary และ Clock Plan
 - [x] Proposal JSON ผ่าน Structural Checker
 - [ ] ตรวจยืนยัน Scientific Validity กับผู้สอน
-- [ ] จัดทำ Proposal Word 2–3 หน้า
-- [ ] ทดสอบ ROS 2 และ Real Robot ตามแผน
-- [ ] ตรวจหลักฐานและ Push GitHub
+- [x] จัดทำ Proposal Word 2–3 หน้า
+- [ ] Build และทดสอบ ROS 2 Jazzy nodes บน Ubuntu 24.04
+- [ ] สอบเทียบและทดสอบ Servo/RGB บน Real Robot อย่างปลอดภัย
+- [ ] ทำ Human Interaction Scenario 600 s ภายใต้การดูแลและความยินยอม
+- [x] ตรวจหลักฐานและ Push GitHub
+
+**งานที่ยังค้าง:** ต้องให้ผู้สอนตรวจ scientific validity, ทดสอบ ROS 2 บน Ubuntu 24.04,
+และทำการทดสอบหุ่นยนต์/ผู้เข้าร่วมจริงหลังผ่าน safety checks เอกสารและผล Offline
+ไม่ใช่หลักฐานของการทดสอบเหล่านี้; เครื่อง Windows ปัจจุบันไม่มี ROS 2/colcon หรือ
+ฮาร์ดแวร์ที่ใช้ยืนยันผลจริง
